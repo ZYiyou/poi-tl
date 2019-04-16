@@ -17,15 +17,29 @@ package com.deepoove.poi.util;
 
 import java.math.BigInteger;
 
+import org.apache.commons.lang3.StringUtils;
+import org.apache.poi.xwpf.usermodel.UnderlinePatterns;
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
+import org.apache.poi.xwpf.usermodel.XWPFTable;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTColor;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTFonts;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTHpsMeasure;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTJc;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTOnOff;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTP;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTPPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTParaRPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTR;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTRPr;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTShd;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTString;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.CTTblPr;
 import org.openxmlformats.schemas.wordprocessingml.x2006.main.STOnOff;
+import org.openxmlformats.schemas.wordprocessingml.x2006.main.STShd;
 
 import com.deepoove.poi.data.style.Style;
+import com.deepoove.poi.data.style.TableStyle;
 
 /**
  * 样式工具类
@@ -49,30 +63,51 @@ public final class StyleUtils {
         Boolean bold = style.isBold();
         Boolean italic = style.isItalic();
         Boolean strike = style.isStrike();
-        if (null != color) run.setColor(color);
+        Boolean underLine = style.isUnderLine();
+        if (StringUtils.isNotBlank(color)) run.setColor(color);
         if (0 != fontSize) run.setFontSize(fontSize);
-        if (null != fontFamily) run.setFontFamily(fontFamily);
+        if (StringUtils.isNotBlank(fontFamily)) {
+            run.setFontFamily(fontFamily);
+            CTRPr pr = run.getCTR().isSetRPr() ? run.getCTR().getRPr() : run.getCTR().addNewRPr();
+            CTFonts fonts = pr.isSetRFonts() ? pr.getRFonts() : pr.addNewRFonts();
+            fonts.setAscii(fontFamily);
+            fonts.setHAnsi(fontFamily);
+            fonts.setCs(fontFamily);
+            fonts.setEastAsia(fontFamily);
+        }
         if (null != bold) run.setBold(bold);
         if (null != italic) run.setItalic(italic);
         if (null != strike) run.setStrikeThrough(strike);
+        if (Boolean.TRUE.equals(underLine)){
+            run.setUnderline(UnderlinePatterns.SINGLE);
+        }
     }
 
     /**
      * 重复样式
      * 
-     * @param destRun
-     * @param srcRun
+     * @param destRun 新建的run
+     * @param srcRun 原始run
      */
     public static void styleRun(XWPFRun destRun, XWPFRun srcRun) {
         if (null == destRun || null == srcRun) return;
-        destRun.setBold(srcRun.isBold());
+        CTR ctr = srcRun.getCTR();
+        if (ctr.isSetRPr() && ctr.getRPr().isSetRStyle()){
+            String val = ctr.getRPr().getRStyle().getVal();
+            if (StringUtils.isNotBlank(val)) {
+                CTRPr pr = destRun.getCTR().isSetRPr() ? destRun.getCTR().getRPr() : destRun.getCTR().addNewRPr();
+                CTString rStyle = pr.isSetRStyle() ? pr.getRStyle() : pr.addNewRStyle();
+                rStyle.setVal(val);
+            }
+        }
+        if (Boolean.TRUE.equals(srcRun.isBold())) destRun.setBold(srcRun.isBold());
         destRun.setColor(srcRun.getColor());
         // destRun.setCharacterSpacing(srcRun.getCharacterSpacing());
-        destRun.setFontFamily(srcRun.getFontFamily());
+        if (StringUtils.isNotBlank(srcRun.getFontFamily())) destRun.setFontFamily(srcRun.getFontFamily());
         int fontSize = srcRun.getFontSize();
         if (-1 != fontSize) destRun.setFontSize(fontSize);
-        destRun.setItalic(srcRun.isItalic());
-        destRun.setStrikeThrough(srcRun.isStrikeThrough());
+        if (Boolean.TRUE.equals(srcRun.isItalic())) destRun.setItalic(srcRun.isItalic());
+        if (Boolean.TRUE.equals(srcRun.isStrikeThrough())) destRun.setStrikeThrough(srcRun.isStrikeThrough());
         destRun.setUnderline(srcRun.getUnderline());
     }
 
@@ -84,7 +119,7 @@ public final class StyleUtils {
      */
     public static void styleRpr(CTParaRPr pr, Style fmtStyle) {
         if (null == pr || null == fmtStyle) return;
-        if (null != fmtStyle.getColor()) {
+        if (StringUtils.isNotBlank(fmtStyle.getColor())) {
             CTColor color = pr.isSetColor() ? pr.getColor() : pr.addNewColor();
             color.setVal(fmtStyle.getColor());
         }
@@ -110,7 +145,7 @@ public final class StyleUtils {
             strike.setVal(fmtStyle.isStrike() ? STOnOff.TRUE : STOnOff.FALSE);
         }
 
-        if (null != fmtStyle.getFontFamily()) {
+        if (StringUtils.isNotBlank(fmtStyle.getFontFamily())) {
             CTFonts fonts = pr.isSetRFonts() ? pr.getRFonts() : pr.addNewRFonts();
             String fontFamily = fmtStyle.getFontFamily();
             fonts.setAscii(fontFamily);
@@ -125,5 +160,34 @@ public final class StyleUtils {
             }
         }
     }
+
+	public static void styleTable(XWPFTable table, TableStyle style) {
+		if (null == table || null == style)
+			return;
+		CTTblPr tblPr = table.getCTTbl().getTblPr();
+		if (null == tblPr) {
+			tblPr = table.getCTTbl().addNewTblPr();
+		}
+		if (null != style.getAlign()) {
+			CTJc jc = tblPr.isSetJc() ? tblPr.getJc() : tblPr.addNewJc();
+			jc.setVal(style.getAlign());
+		}
+		if (StringUtils.isNotBlank(style.getBackgroundColor())) {
+			CTShd ctshd = tblPr.isSetShd() ? tblPr.getShd() : tblPr.addNewShd();
+			ctshd.setColor("auto");
+			ctshd.setVal(STShd.CLEAR);
+			ctshd.setFill(style.getBackgroundColor());
+		}
+	}
+
+	public static void styleTableParagraph(XWPFParagraph par, TableStyle style) {
+		if (null != par && null != style && null != style.getAlign()) {
+			CTP ctp = par.getCTP();
+			CTPPr CTPpr = ctp.isSetPPr() ? ctp.getPPr() : ctp.addNewPPr();
+			CTJc jc = CTPpr.isSetJc() ? CTPpr.getJc() : CTPpr.addNewJc();
+			jc.setVal(style.getAlign());
+		}
+
+	}
 
 }

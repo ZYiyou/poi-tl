@@ -15,47 +15,66 @@
  */
 package com.deepoove.poi.policy;
 
+import org.apache.poi.xwpf.usermodel.XWPFParagraph;
 import org.apache.poi.xwpf.usermodel.XWPFRun;
 
+import com.deepoove.poi.XWPFParagraphWrapper;
 import com.deepoove.poi.XWPFTemplate;
+import com.deepoove.poi.data.HyperLinkTextRenderData;
 import com.deepoove.poi.data.TextRenderData;
-import com.deepoove.poi.template.ElementTemplate;
 import com.deepoove.poi.template.run.RunTemplate;
 import com.deepoove.poi.util.StyleUtils;
 
-public class TextRenderPolicy implements RenderPolicy {
+/**
+ * 
+ * @author Sayi
+ * @version
+ */
+public class TextRenderPolicy extends AbstractRenderPolicy {
 
-	static final String REGEX_LINE_CHARACTOR = "\\n";
+    static final String REGEX_LINE_CHARACTOR = "\\n";
 
-	@Override
-	public void render(ElementTemplate eleTemplate, Object renderData, XWPFTemplate template) {
-		RunTemplate runTemplate = (RunTemplate) eleTemplate;
-		XWPFRun run = runTemplate.getRun();
-		if (null == renderData) {
-			// support String to set blank
-			run.setText("", 0);
-			return;
-		}
+    @Override
+    protected boolean validate(Object data) {
+        return null != data;
+    }
 
-		TextRenderData textRenderData = null;
-		if (renderData instanceof TextRenderData) {
-			textRenderData = (TextRenderData) renderData;
-		} else {
-			textRenderData = new TextRenderData(renderData.toString());
-		}
-		String data = textRenderData.getText();
-		StyleUtils.styleRun(run, textRenderData.getStyle());
-		if (null == data) data = "";
-		
-		String[] split = data.split(REGEX_LINE_CHARACTOR);
-		if (null != split){
-		    run.setText(split[0], 0); 
-		    for (int i = 1; i < split.length; i++) {
-                run.addBreak(); 
+    @Override
+    public void doRender(RunTemplate runTemplate, Object renderData, XWPFTemplate template)
+            throws Exception {
+        XWPFRun run = runTemplate.getRun();
+
+        // create hyper link run
+        if (renderData instanceof HyperLinkTextRenderData) {
+            run = createHyperLinkRun(runTemplate, renderData);
+        }
+
+        // text
+        TextRenderData textRenderData = renderData instanceof TextRenderData
+                ? (TextRenderData) renderData : new TextRenderData(renderData.toString());
+
+        String data = null == textRenderData.getText() ? "" : textRenderData.getText();
+
+        StyleUtils.styleRun(run, textRenderData.getStyle());
+
+        String[] split = data.split(REGEX_LINE_CHARACTOR);
+        if (null != split) {
+            run.setText(split[0], 0);
+            for (int i = 1; i < split.length; i++) {
+                run.addBreak();
                 run.setText(split[i]);
             }
-		}
-	}
+        }
+    }
 
-	
+    private XWPFRun createHyperLinkRun(RunTemplate runTemplate, Object renderData) {
+        XWPFRun run = runTemplate.getRun();
+        XWPFParagraphWrapper paragraph = new XWPFParagraphWrapper((XWPFParagraph) run.getParent());
+        XWPFRun hyperLinkRun = paragraph.insertNewHyperLinkRun(runTemplate.getRunPos(),
+                ((HyperLinkTextRenderData) renderData).getUrl());
+        StyleUtils.styleRun(hyperLinkRun, run);
+        clearPlaceholder(run);
+        return run = hyperLinkRun;
+    }
+
 }

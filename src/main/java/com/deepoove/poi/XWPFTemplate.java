@@ -18,20 +18,19 @@ package com.deepoove.poi;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.InputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
-import java.util.Map;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.deepoove.poi.config.Configure;
 import com.deepoove.poi.exception.ResolverException;
-import com.deepoove.poi.policy.RenderPolicy;
 import com.deepoove.poi.render.RenderAPI;
-import com.deepoove.poi.resolver.TemplateResolver;
+import com.deepoove.poi.resolver.TemplateVisitor;
+import com.deepoove.poi.resolver.Visitor;
 import com.deepoove.poi.template.ElementTemplate;
 
 /**
@@ -42,29 +41,13 @@ import com.deepoove.poi.template.ElementTemplate;
  */
 public class XWPFTemplate {
 	private static Logger logger = LoggerFactory.getLogger(XWPFTemplate.class);
+	
 	private NiceXWPFDocument doc;
 	private Configure config;
-
+	private Visitor visitor;
 	private List<ElementTemplate> eleTemplates;
 
-	private XWPFTemplate() {}
-
-	/**
-	 * @param filePath
-	 * @return
-	 */
-	@Deprecated
-	public static XWPFTemplate create(String filePath) {
-		return compile(filePath);
-	}
-
-	/**
-	 * @param file
-	 * @return
-	 */
-	@Deprecated
-	public static XWPFTemplate create(File file) {
-		return compile(file);
+	private XWPFTemplate() {
 	}
 
 	/**
@@ -77,16 +60,17 @@ public class XWPFTemplate {
 	public static XWPFTemplate compile(File file) {
 		return compile(file, Configure.createDefault());
 	}
-	
-    /**
-     * template file as InputStream
-     * @param inputStream
-     * @return
-     * @version 1.2.0
-     */
-    public static XWPFTemplate compile(InputStream inputStream) {
-        return compile(inputStream, Configure.createDefault());
-    }
+
+	/**
+	 * template file as InputStream
+	 * 
+	 * @param inputStream
+	 * @return
+	 * @version 1.2.0
+	 */
+	public static XWPFTemplate compile(InputStream inputStream) {
+		return compile(inputStream, Configure.createDefault());
+	}
 
 	/**
 	 * @param filePath
@@ -97,7 +81,6 @@ public class XWPFTemplate {
 	public static XWPFTemplate compile(String filePath, Configure config) {
 		return compile(new File(filePath), config);
 	}
-	
 
 	/**
 	 * @param file
@@ -107,16 +90,16 @@ public class XWPFTemplate {
 	 */
 	public static XWPFTemplate compile(File file, Configure config) {
 		try {
-            return compile(new FileInputStream(file), config);
-        } catch (FileNotFoundException e) {
-            logger.error("Cannot find the file", e);
-            throw new ResolverException("Cannot find the file [" + file.getPath() + "]");
-        }
+			return compile(new FileInputStream(file), config);
+		} catch (FileNotFoundException e) {
+			logger.error("Cannot find the file", e);
+			throw new ResolverException("Cannot find the file [" + file.getPath() + "]");
+		}
 	}
-
 
 	/**
 	 * template file as InputStream
+	 * 
 	 * @param inputStream
 	 * @param config
 	 * @return
@@ -127,8 +110,8 @@ public class XWPFTemplate {
 			XWPFTemplate instance = new XWPFTemplate();
 			instance.config = config;
 			instance.doc = new NiceXWPFDocument(inputStream);
-			instance.eleTemplates = new TemplateResolver(instance.config)
-					.parseElementTemplates(instance.doc);
+			instance.visitor = new TemplateVisitor(instance.config);
+			instance.eleTemplates = instance.visitor.visitDocument(instance.doc);
 			return instance;
 		} catch (IOException e) {
 			logger.error("Compile template failed", e);
@@ -136,49 +119,26 @@ public class XWPFTemplate {
 		}
 	}
 
-	public XWPFTemplate render(Map<String, Object> datas) {
-		RenderAPI.render(this, datas);
-		return this;
-	}
-
-	public XWPFTemplate render(Object datasource) {
-		RenderAPI.render(this, datasource);
-		return this;
-	}
-
 	/**
-	 * @param templateClass
-	 * @param policy
-	 * @deprecated 1.0.0
-	 */
-	@Deprecated
-	public void registerPolicy(Class<?> templateClass, RenderPolicy policy) {
-		this.registerPolicy(templateClass.getName(), policy);
-	}
-
-	/**
-	 * 自定义模板对应的策略
+	 * 重新解析doc
 	 * 
-	 * @param templateName
-	 * @param policy
+	 * @param doc
 	 */
-	public void registerPolicy(String templateName, RenderPolicy policy) {
-		config.customPolicy(templateName, policy);
+	public void reload(NiceXWPFDocument doc) {
+		try {
+			this.close();
+		} catch (IOException e) {
+		    logger.error("Close failed", e);
+		}
+		this.doc = doc;
+		this.eleTemplates = this.visitor.visitDocument(doc);
 	}
 
-	/**
-	 * @param clazz
-	 * @return
-	 */
-	@Deprecated
-	public RenderPolicy getPolicy(Class<? extends ElementTemplate> clazz) {
-		return config.getCustomPolicys().get(clazz.getName());
+	public XWPFTemplate render(Object model) {
+		RenderAPI.render(this, model);
+		return this;
 	}
-
-	public RenderPolicy getPolicy(String templateName) {
-		return config.getCustomPolicys().get(templateName);
-	}
-
+	
 	public void write(OutputStream out) throws IOException {
 		this.doc.write(out);
 	}

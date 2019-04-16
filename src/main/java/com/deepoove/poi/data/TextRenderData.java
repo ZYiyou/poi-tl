@@ -15,6 +15,7 @@
  */
 package com.deepoove.poi.data;
 
+import com.deepoove.poi.data.builder.StyleBuilder;
 import com.deepoove.poi.data.style.Style;
 
 /**
@@ -25,8 +26,12 @@ import com.deepoove.poi.data.style.Style;
  *
  */
 public class TextRenderData implements RenderData {
-	private Style style;
-	private String text;
+	protected Style style;
+
+	/**
+	 * \n 表示换行
+	 */
+	protected String text;
 
 	public TextRenderData() {
 	}
@@ -36,7 +41,12 @@ public class TextRenderData implements RenderData {
 	}
 
 	public TextRenderData(String color, String text) {
-		this.style = new Style(color);
+		this.style = StyleBuilder.newBuilder().buildColor(color).build();
+		this.text = text;
+	}
+
+	public TextRenderData(String text, Style style) {
+		this.style = style;
 		this.text = text;
 	}
 
